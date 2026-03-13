@@ -46,6 +46,19 @@ class TicketResponse(BaseModel):
     assignees: List[int] = []
     attachments: List[dict] = []
 
+# Add this schema near the other Pydantic models
+class TicketFilter(BaseModel):
+    as_customer: Optional[bool] = None
+    for_customer: Optional[bool] = None
+    startDueDate: Optional[datetime] = None
+    endDueDate: Optional[datetime] = None
+
+# Add this route after the existing ones
+@router.post("/filter", response_model=APIResponse[List[TicketResponse]])
+def filter_tickets(filter: TicketFilter, db=Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
+    result = TicketService.get_filtered_tickets(filter, db, current_user_id)
+    return success_response(result, "Filtered tickets fetched successfully")
+    
 @router.post("", response_model=APIResponse[TicketResponse], status_code=status.HTTP_201_CREATED)
 def create_ticket(ticket: TicketCreate, db=Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     result = TicketService.create_ticket(ticket, db, current_user_id)

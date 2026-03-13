@@ -7,6 +7,13 @@ from .service import CompanyService
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
+@router.get("/getAllUsers")
+def get_companies_with_users(
+    db=Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
+    result = CompanyService.get_users_by_company(db)
+    return success_response(result, "Companies with users fetched successfully")
 
 @router.get("")
 def get_all_companies(db=Depends(get_db)):

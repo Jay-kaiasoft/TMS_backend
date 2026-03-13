@@ -7,6 +7,61 @@ import shutil
 class CompanyService:
 
     @staticmethod
+    def get_users_by_company(db):
+        with db.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    c.id AS company_id,
+                    c.company_name,
+                    u.id AS user_id,
+                    u.first_name,
+                    u.last_name
+                FROM companies c
+                LEFT JOIN users u ON c.id = u.company_id
+                ORDER BY c.id, u.id
+            """)
+            rows = cursor.fetchall()
+
+        result = []
+        current_company = None
+        current_company_name = None
+        current_users = []
+
+        for row in rows:
+            if current_company != row['company_id']:
+                # Save previous company
+                if current_company is not None:
+                    result.append({
+                        "id": current_company,
+                        "name": current_company_name,
+                        "data": current_users
+                    })
+                # Start new company
+                current_company = row['company_id']
+                current_company_name = row['company_name']
+                # Check if this row has a user
+                if row['user_id'] is not None:
+                    full_name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip()
+                    current_users = [{"id": row['user_id'], "name": full_name}]
+                else:
+                    current_users = []
+            else:
+                # Same company: add user if exists
+                if row['user_id'] is not None:
+                    full_name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip()
+                    current_users.append({"id": row['user_id'], "name": full_name})
+
+        # Append the last company
+        if current_company is not None:
+            result.append({
+                "id": current_company,
+                "name": current_company_name,
+                "data": current_users
+            })
+
+        return result
+
+    @staticmethod
     def get_all(db):
         with db.cursor() as cursor:
             cursor.execute("SELECT * FROM companies ORDER BY id DESC")

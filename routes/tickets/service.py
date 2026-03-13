@@ -46,6 +46,54 @@ class TicketService:
         return ticket_dict
 
     @staticmethod
+    def get_filtered_tickets(filter_obj, db, current_user_id):
+        """
+        filter_obj: an object with optional attributes:
+            as_customer (bool), for_customer (bool),
+            startDueDate (datetime), endDueDate (datetime)
+        """
+        with db.cursor() as cursor:
+            # Base query: only tickets the user can see (creator or assignee)
+            query = """
+                SELECT DISTINCT t.id
+                FROM tickets t
+            LEFT JOIN assigned_tickets at ON t.id = at.ticket_id
+            WHERE (t.created_by = %s OR at.assign_to = %s)
+        """
+        params = [current_user_id, current_user_id]
+
+        # Apply optional filters
+        if filter_obj.as_customer is not None:
+            query += " AND t.as_customer = %s"
+            params.append(int(filter_obj.as_customer))  # convert bool to 0/1
+
+        if filter_obj.for_customer is not None:
+            query += " AND t.for_customer = %s"
+            params.append(int(filter_obj.for_customer))
+
+        if filter_obj.startDueDate is not None and filter_obj.endDueDate is not None:
+            query += " AND t.due_date BETWEEN %s AND %s"
+            params.append(filter_obj.startDueDate)
+            params.append(filter_obj.endDueDate)
+        elif filter_obj.startDueDate is not None:
+            query += " AND t.due_date >= %s"
+            params.append(filter_obj.startDueDate)
+        elif filter_obj.endDueDate is not None:
+            query += " AND t.due_date <= %s"
+            params.append(filter_obj.endDueDate)
+
+        query += " ORDER BY t.id DESC"
+
+        cursor.execute(query, params)
+        ticket_records = cursor.fetchall()
+
+        results = []
+        for record in ticket_records:
+            results.append(TicketService.get_ticket_internal(cursor, record['id']))
+
+        return results
+        
+    @staticmethod
     def create_ticket(ticket, db, current_user_id):
         with db.cursor() as cursor:
             sql = """
