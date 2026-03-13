@@ -1,0 +1,273 @@
+from fastapi import HTTPException, Header
+from core.security import SECRET_KEY, ALGORITHM
+from services.email_service import EmailService
+import jwt
+import os
+import shutil
+
+def get_current_user_id(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("user_id")
+    except jwt.PyJWTError:
+        return None
+
+class TicketService:
+
+    @staticmethod
+    def get_ticket_internal(cursor, ticket_id):
+        sql = """
+            SELECT t.*, s.name as status_name 
+            FROM tickets t
+            LEFT JOIN status s ON t.status_id = s.id
+            WHERE t.id = %s
+        """
+        cursor.execute(sql, (ticket_id,))
+        ticket = cursor.fetchone()
+        if not ticket:
+            return None
+            
+        cursor.execute("SELECT assign_to FROM assigned_tickets WHERE ticket_id=%s", (ticket_id,))
+        assignees = [r['assign_to'] for r in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, file_name, file_URL, created_by, created_date FROM tickets_attachments WHERE ticket_id=%s", (ticket_id,))
+        attachments = cursor.fetchall()
+        
+        ticket_dict = dict(ticket)
+        # Convert as_customer and for_customer from 1/0 to bool
+        ticket_dict['as_customer'] = bool(ticket_dict.get('as_customer', False))
+        ticket_dict['for_customer'] = bool(ticket_dict.get('for_customer', False))
+        
+        ticket_dict['assignees'] = assignees
+        ticket_dict['attachments'] = attachments
+        return ticket_dict
+
+    @staticmethod
+    def create_ticket(ticket, db, current_user_id):
+        with db.cursor() as cursor:
+            sql = """
+                INSERT INTO tickets (project_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (
+                ticket.project_id, ticket.title, ticket.description, ticket.due_date, 
+                ticket.as_customer, ticket.for_customer, ticket.status_id, current_user_id
+            ))
+            db.commit()
+            ticket_id = cursor.lastrowid
+            
+            # Handle assignees
+            if ticket.assignees:
+                assignee_vals = [(ticket_id, uid, current_user_id) for uid in ticket.assignees]
+                cursor.executemany(
+                    "INSERT INTO assigned_tickets (ticket_id, assign_to, created_by) VALUES (%s, %s, %s)",
+                    assignee_vals
+                )
+                db.commit()
+                
+                # Send assignment emails
+                format_strings = ','.join(['%s'] * len(ticket.assignees))
+                cursor.execute(f"SELECT email, first_name FROM users WHERE id IN ({format_strings})", tuple(ticket.assignees))
+                users_to_email = cursor.fetchall()
+                for u in users_to_email:
+                    subject = f"New Ticket Assigned: {ticket.title}"
+                    formatted_date = f"{ticket.due_date.strftime('%b')} {ticket.due_date.day}, {ticket.due_date.year}"
+                    context = {
+                        "subject": subject,
+                        "message": f"Hello {u['first_name']},<br><br>You have been assigned to a new ticket: <b>{ticket.title}</b>.<br><br><b>Due Date: {formatted_date}</b>",
+                    }
+                    EmailService.send_email(u['email'], subject, "email_template.html", context)
+                
+            return TicketService.get_ticket_internal(cursor, ticket_id)
+
+    @staticmethod
+    def get_all_tickets(db, current_user_id):        
+        with db.cursor() as cursor:
+            # We use DISTINCT to avoid duplicates if a user assigned a ticket to themselves
+            query = """
+                SELECT DISTINCT t.id 
+                FROM tickets t
+                LEFT JOIN assigned_tickets at ON t.id = at.ticket_id
+                WHERE t.created_by = %s OR at.assign_to = %s
+                ORDER BY t.id DESC
+            """
+            cursor.execute(query, (current_user_id, current_user_id))
+            ticket_records = cursor.fetchall()
+            
+            results = []
+            for record in ticket_records:
+                # Reusing your internal helper to fetch full ticket details
+                results.append(TicketService.get_ticket_internal(cursor, record['id']))
+                
+            return results
+
+    @staticmethod
+    def get_ticket(ticket_id: int, db):
+        with db.cursor() as cursor:
+            ticket = TicketService.get_ticket_internal(cursor, ticket_id)
+            if not ticket:
+                raise HTTPException(status_code=404, detail="Ticket not found")
+            return ticket
+
+    @staticmethod
+    def update_ticket(ticket_id: int, ticket_update, db, current_user_id):
+        with db.cursor() as cursor:
+            cursor.execute("""
+                SELECT t.* 
+                FROM tickets t
+                LEFT JOIN status s ON t.status_id = s.id
+                WHERE t.id=%s
+            """, (ticket_id,))
+            old_ticket = cursor.fetchone()
+            if not old_ticket:
+                raise HTTPException(status_code=404, detail="Ticket not found")
+                
+            cursor.execute("SELECT assign_to FROM assigned_tickets WHERE ticket_id=%s", (ticket_id,))
+            old_assignees = set([r['assign_to'] for r in cursor.fetchall()])
+            new_assignees = set(ticket_update.assignees)
+                
+            sql = """
+                UPDATE tickets
+                SET project_id=%s, title=%s, description=%s, due_date=%s, as_customer=%s, for_customer=%s, status_id=%s
+                WHERE id=%s
+            """
+            cursor.execute(sql, (
+                ticket_update.project_id, ticket_update.title, ticket_update.description, ticket_update.due_date,
+                ticket_update.as_customer, ticket_update.for_customer, ticket_update.status_id, ticket_id
+            ))
+            
+            # Update assignees: easiest is delete and recreate
+            cursor.execute("DELETE FROM assigned_tickets WHERE ticket_id=%s", (ticket_id,))
+            
+            if ticket_update.assignees:
+                assignee_vals = [(ticket_id, uid, current_user_id) for uid in ticket_update.assignees]
+                cursor.executemany(
+                    "INSERT INTO assigned_tickets (ticket_id, assign_to, created_by) VALUES (%s, %s, %s)",
+                    assignee_vals
+                )
+                
+            db.commit()
+
+            # Email notifications logic
+            try:
+                due_date_str_old = str(old_ticket['due_date'])[:16] if old_ticket['due_date'] else None
+                due_date_str_new = str(ticket_update.due_date)[:16] if ticket_update.due_date else None
+                due_date_changed = (due_date_str_old != due_date_str_new)
+            except Exception:
+                due_date_changed = False
+                
+            status_changed = (old_ticket['status_id'] != ticket_update.status_id)
+            new_status_name = ""
+            if status_changed and ticket_update.status_id:
+                cursor.execute("SELECT name FROM status WHERE id=%s", (ticket_update.status_id,))
+                st_res = cursor.fetchone()
+                if st_res:
+                    new_status_name = st_res['name']
+            
+            new_assigned_users = list(new_assignees - old_assignees)
+            new_assigned_users_emails = []
+            
+            if new_assigned_users:
+                format_strings = ','.join(['%s'] * len(new_assigned_users))
+                cursor.execute(f"SELECT email, first_name FROM users WHERE id IN ({format_strings})", tuple(new_assigned_users))
+                users_to_email = cursor.fetchall()
+                for u in users_to_email:
+                    new_assigned_users_emails.append(u['email'])
+                    subject = f"New Ticket Assigned: {ticket_update.title}"
+                    formatted_date = f"{ticket_update.due_date.strftime('%b')} {ticket_update.due_date.day}, {ticket_update.due_date.year}"
+                    context = {
+                        "subject": subject,
+                        "message": f"Hello {u['first_name']},<br><br>You have been assigned to an existing ticket: <b>{ticket_update.title}</b>.<br><br><b>Due Date: {formatted_date}</b>",
+                    }
+                    EmailService.send_email(u['email'], subject, "email_template.html", context)
+                    
+            if (due_date_changed or status_changed) and ticket_update.assignees:
+                format_strings = ','.join(['%s'] * len(ticket_update.assignees))
+                cursor.execute(f"SELECT email, first_name FROM users WHERE id IN ({format_strings})", tuple(ticket_update.assignees))
+                all_users_to_email = cursor.fetchall()
+                
+                for u in all_users_to_email:
+                    if u['email'] in new_assigned_users_emails:
+                        continue
+                        
+                    messages_parts = []
+                    if due_date_changed:
+                        old_date_formatted = f"None"
+                        if old_ticket['due_date']:
+                            if hasattr(old_ticket['due_date'], 'strftime'):
+                                old_date_formatted = f"{old_ticket['due_date'].strftime('%b')} {old_ticket['due_date'].day}, {old_ticket['due_date'].year}"
+                            else:
+                                old_date_formatted = str(old_ticket['due_date'])
+                                
+                        new_date_formatted = f"{ticket_update.due_date.strftime('%b')} {ticket_update.due_date.day}, {ticket_update.due_date.year}" if ticket_update.due_date else 'None'
+                        messages_parts.append(f"<b>Due Date:</b> <span style='text-decoration: line-through; color: red;'>{old_date_formatted}</span> <span style='color: green;'>{new_date_formatted}</span>")
+                    if status_changed:
+                        old_status = old_ticket['status_name'] if old_ticket['status_name'] else 'Unassigned'
+                        new_status = new_status_name if new_status_name else 'Unassigned'
+                        messages_parts.append(f"<b>Status:</b> <span style='text-decoration: line-through; color: red;'>{old_status}</span> <span style='color: green;'>{new_status}</span>")
+                    
+                    subject = f"Ticket Update: {ticket_update.title}"
+                    context = {
+                        "subject": subject,
+                        "message": f"Hello {u['first_name']},<br><br>The following updates have been made to ticket <b>{ticket_update.title}</b>:<br><br>" + "<br><br>".join(messages_parts),
+                    }
+                    EmailService.send_email(u['email'], subject, "email_template.html", context)
+
+            return TicketService.get_ticket_internal(cursor, ticket_id)
+
+    @staticmethod
+    def delete_ticket(ticket_id: int, db):
+        with db.cursor() as cursor:
+            cursor.execute("SELECT id FROM tickets WHERE id=%s", (ticket_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Ticket not found")
+                
+            cursor.execute("SELECT file_URL FROM tickets_attachments WHERE ticket_id=%s", (ticket_id,))
+            attachments = cursor.fetchall()
+            
+            # Use base dir relative from where tickets_attachments used to be
+            base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public")
+            ticket_dirs_to_remove = set()
+            
+            for att in attachments:
+                file_url = att['file_URL']
+                if file_url:
+                    clean_url = file_url.lstrip('/')
+                    file_path = os.path.join(base_dir, os.path.normpath(clean_url))
+                    
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            att_dir = os.path.dirname(file_path)
+                            if not os.listdir(att_dir):
+                                shutil.rmtree(att_dir)
+                            
+                            attachments_dir = os.path.dirname(att_dir)
+                            if os.path.basename(attachments_dir) == 'attachments':
+                                ticket_dir = os.path.dirname(attachments_dir)
+                                ticket_dirs_to_remove.add(ticket_dir)
+                        except Exception as e:
+                            print(f"Error deleting file {file_path}: {e}")
+            
+            # Cleanup parent directories if they are now empty
+            for t_dir in ticket_dirs_to_remove:
+                if os.path.exists(t_dir):
+                    att_dir = os.path.join(t_dir, 'attachments')
+                    if os.path.exists(att_dir) and not os.listdir(att_dir):
+                        try:
+                            shutil.rmtree(att_dir)
+                        except: pass
+                    if os.path.exists(t_dir) and not os.listdir(t_dir):
+                        try:
+                            shutil.rmtree(t_dir)
+                        except: pass
+
+            # Delete database records
+            cursor.execute("DELETE FROM tickets_attachments WHERE ticket_id=%s", (ticket_id,))
+            cursor.execute("DELETE FROM assigned_tickets WHERE ticket_id=%s", (ticket_id,))
+            cursor.execute("DELETE FROM tickets WHERE id=%s", (ticket_id,))
+            db.commit()
+            return True

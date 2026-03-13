@@ -1,0 +1,43 @@
+from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel
+from typing import List
+from database import get_db
+from core.response import APIResponse, success_response
+from .service import DepartmentService
+
+router = APIRouter(prefix="/departments", tags=["Departments"])
+
+class DepartmentCreate(BaseModel):
+    name: str
+
+class DepartmentUpdate(BaseModel):
+    name: str
+
+class DepartmentResponse(BaseModel):
+    id: int
+    name: str
+
+@router.post("", response_model=APIResponse[DepartmentResponse], status_code=status.HTTP_201_CREATED)
+def create_department(dept: DepartmentCreate, db=Depends(get_db)):
+    result = DepartmentService.create_department(dept, db)
+    return success_response(result, "Department created successfully", 201)
+
+@router.get("", response_model=APIResponse[List[DepartmentResponse]])
+def get_all_departments(db=Depends(get_db)):
+    result = DepartmentService.get_all_departments(db)
+    return success_response(result, "Departments fetched successfully")
+
+@router.get("/{dept_id}", response_model=APIResponse[DepartmentResponse])
+def get_department(dept_id: int, db=Depends(get_db)):
+    result = DepartmentService.get_department(dept_id, db)
+    return success_response(result, "Department fetched successfully")
+
+@router.put("/{dept_id}", response_model=APIResponse[DepartmentResponse])
+def update_department(dept_id: int, dept_update: DepartmentUpdate, db=Depends(get_db)):
+    result = DepartmentService.update_department(dept_id, dept_update, db)
+    return success_response(result, "Department updated successfully")
+
+@router.delete("/{dept_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_department(dept_id: int, db=Depends(get_db)):
+    DepartmentService.delete_department(dept_id, db)
+    return success_response(None, "Department deleted successfully", 204)
