@@ -2,6 +2,9 @@ import os
 import shutil
 from PIL import Image
 
+# Increase pixel limit for large images to avoid DecompressionBombWarning
+Image.MAX_IMAGE_PIXELS = None
+
 MAX_DIM = 1920
 
 class FileService:

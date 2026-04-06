@@ -35,7 +35,14 @@ class ProjectService:
                 new_id = cursor.lastrowid
                 
                 client_name = f"{client['first_name']} {client['last_name']}".strip()
-                return {"id": new_id, "name": project.name, "client_id": project.client_id, "client_name": client_name}
+                return {
+                    "id": new_id, 
+                    "name": project.name, 
+                    "client_id": project.client_id, 
+                    "client_name": client_name,
+                    "ticket_count": 0,
+                    "ticket_titles": []
+                }
         except HTTPException:
             raise
         except Exception as e:
@@ -99,10 +106,19 @@ class ProjectService:
         try:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT p.id, p.name, p.client_id, u.first_name, u.last_name 
+                    SELECT 
+                        p.id, 
+                        p.name, 
+                        p.client_id, 
+                        u.first_name, 
+                        u.last_name,
+                        COUNT(t.id) AS ticket_count,
+                        GROUP_CONCAT(t.title SEPARATOR '|') AS ticket_titles
                     FROM projects p 
                     LEFT JOIN users u ON p.client_id = u.id 
+                    LEFT JOIN tickets t ON t.project_id = p.id
                     WHERE p.id = %s
+                    GROUP BY p.id, p.name, p.client_id, u.first_name, u.last_name
                 """, (project_id,))
                 row = cursor.fetchone()
                 if not row:
@@ -111,12 +127,18 @@ class ProjectService:
                 client_name = None
                 if row['first_name'] or row['last_name']:
                     client_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip()
+                
+                ticket_titles = []
+                if row['ticket_titles']:
+                    ticket_titles = row['ticket_titles'].split('|')
                     
                 return {
                     "id": row['id'],
                     "name": row['name'],
                     "client_id": row['client_id'],
-                    "client_name": client_name
+                    "client_name": client_name,
+                    "ticket_count": row['ticket_count'],
+                    "ticket_titles": ticket_titles
                 }
         except HTTPException:
             raise
@@ -147,7 +169,22 @@ class ProjectService:
                 conn.commit()
                 
                 client_name = f"{client['first_name']} {client['last_name']}".strip()
-                return {"id": project_id, "name": project.name, "client_id": project.client_id, "client_name": client_name}
+                
+                # Fetch updated stats
+                cursor.execute("SELECT COUNT(id) FROM tickets WHERE project_id = %s", (project_id,))
+                ticket_count = cursor.fetchone()['COUNT(id)']
+                
+                cursor.execute("SELECT title FROM tickets WHERE project_id = %s", (project_id,))
+                ticket_titles = [t['title'] for t in cursor.fetchall()]
+
+                return {
+                    "id": project_id, 
+                    "name": project.name, 
+                    "client_id": project.client_id, 
+                    "client_name": client_name,
+                    "ticket_count": ticket_count,
+                    "ticket_titles": ticket_titles
+                }
         except HTTPException:
             raise
         except Exception as e:

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/tickets", tags=["Tickets"])
 # -----------------
 class TicketCreate(BaseModel):
     project_id: int
+    department_id: int
     title: str = Field(..., min_length=1)
     description: Optional[str] = None
     due_date: datetime
@@ -23,6 +24,7 @@ class TicketCreate(BaseModel):
 
 class TicketUpdate(BaseModel):
     project_id: int
+    department_id: int
     title: str = Field(..., min_length=1)
     description: Optional[str] = None
     due_date: datetime
@@ -31,9 +33,14 @@ class TicketUpdate(BaseModel):
     status_id: Optional[int] = None
     assignees: List[int] = Field(..., min_length=1)
 
+class AssigneeResponse(BaseModel):
+    id: int
+    name: str
+
 class TicketResponse(BaseModel):
     id: int
     project_id: int
+    department_id: Optional[int] = None
     title: str
     description: Optional[str]
     due_date: Optional[datetime]
@@ -43,7 +50,7 @@ class TicketResponse(BaseModel):
     created_date: datetime
     status_id: Optional[int] = None
     status_name: Optional[str] = None
-    assignees: List[int] = []
+    assignees: List[AssigneeResponse] = []
     attachments: List[dict] = []
 
 # Add this schema near the other Pydantic models

@@ -40,8 +40,18 @@ class TicketService:
         # Convert as_customer and for_customer from 1/0 to bool
         ticket_dict['as_customer'] = bool(ticket_dict.get('as_customer', False))
         ticket_dict['for_customer'] = bool(ticket_dict.get('for_customer', False))
-        
-        ticket_dict['assignees'] = assignees
+        if len(assignees) > 0:
+            users = []
+            for assign in assignees:
+                sql = "SELECT id, first_name, last_name FROM users WHERE id = %s"
+                cursor.execute(sql, (int(assign),))
+                assignee = cursor.fetchone()
+                if assignee:
+                    user = {"id": int(assignee['id']), "name": f"{assignee['first_name']} {assignee['last_name']}"}
+                    users.append(user)
+            ticket_dict['assignees'] = users
+        else:
+            ticket_dict['assignees'] = []
         ticket_dict['attachments'] = attachments
         return ticket_dict
 
@@ -57,51 +67,51 @@ class TicketService:
             query = """
                 SELECT DISTINCT t.id
                 FROM tickets t
-            LEFT JOIN assigned_tickets at ON t.id = at.ticket_id
-            WHERE (t.created_by = %s OR at.assign_to = %s)
-        """
-        params = [current_user_id, current_user_id]
+                LEFT JOIN assigned_tickets at ON t.id = at.ticket_id
+                WHERE (t.created_by = %s OR at.assign_to = %s)
+            """
+            params = [current_user_id, current_user_id]
 
-        # Apply optional filters
-        if filter_obj.as_customer is not None:
-            query += " AND t.as_customer = %s"
-            params.append(int(filter_obj.as_customer))  # convert bool to 0/1
+            # Apply optional filters
+            if filter_obj.as_customer is not None:
+                query += " AND t.as_customer = %s"
+                params.append(int(filter_obj.as_customer))  # convert bool to 0/1
 
-        if filter_obj.for_customer is not None:
-            query += " AND t.for_customer = %s"
-            params.append(int(filter_obj.for_customer))
+            if filter_obj.for_customer is not None:
+                query += " AND t.for_customer = %s"
+                params.append(int(filter_obj.for_customer))
 
-        if filter_obj.startDueDate is not None and filter_obj.endDueDate is not None:
-            query += " AND t.due_date BETWEEN %s AND %s"
-            params.append(filter_obj.startDueDate)
-            params.append(filter_obj.endDueDate)
-        elif filter_obj.startDueDate is not None:
-            query += " AND t.due_date >= %s"
-            params.append(filter_obj.startDueDate)
-        elif filter_obj.endDueDate is not None:
-            query += " AND t.due_date <= %s"
-            params.append(filter_obj.endDueDate)
+            if filter_obj.startDueDate is not None and filter_obj.endDueDate is not None:
+                query += " AND t.due_date BETWEEN %s AND %s"
+                params.append(filter_obj.startDueDate)
+                params.append(filter_obj.endDueDate)
+            elif filter_obj.startDueDate is not None:
+                query += " AND t.due_date >= %s"
+                params.append(filter_obj.startDueDate)
+            elif filter_obj.endDueDate is not None:
+                query += " AND t.due_date <= %s"
+                params.append(filter_obj.endDueDate)
 
-        query += " ORDER BY t.id DESC"
+            query += " ORDER BY t.id DESC"
 
-        cursor.execute(query, params)
-        ticket_records = cursor.fetchall()
+            cursor.execute(query, params)
+            ticket_records = cursor.fetchall()
 
-        results = []
-        for record in ticket_records:
-            results.append(TicketService.get_ticket_internal(cursor, record['id']))
+            results = []
+            for record in ticket_records:
+                results.append(TicketService.get_ticket_internal(cursor, record['id']))
 
-        return results
+            return results
         
     @staticmethod
     def create_ticket(ticket, db, current_user_id):
         with db.cursor() as cursor:
             sql = """
-                INSERT INTO tickets (project_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
+                INSERT INTO tickets (project_id,department_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (
-                ticket.project_id, ticket.title, ticket.description, ticket.due_date, 
+                ticket.project_id, ticket.department_id, ticket.title, ticket.description, ticket.due_date, 
                 ticket.as_customer, ticket.for_customer, ticket.status_id, current_user_id
             ))
             db.commit()
@@ -179,11 +189,11 @@ class TicketService:
                 
             sql = """
                 UPDATE tickets
-                SET project_id=%s, title=%s, description=%s, due_date=%s, as_customer=%s, for_customer=%s, status_id=%s
+                SET project_id=%s,department_id=%s, title=%s, description=%s, due_date=%s, as_customer=%s, for_customer=%s, status_id=%s
                 WHERE id=%s
             """
             cursor.execute(sql, (
-                ticket_update.project_id, ticket_update.title, ticket_update.description, ticket_update.due_date,
+                ticket_update.project_id, ticket_update.department_id, ticket_update.title, ticket_update.description, ticket_update.due_date,
                 ticket_update.as_customer, ticket_update.for_customer, ticket_update.status_id, ticket_id
             ))
             

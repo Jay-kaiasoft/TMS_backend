@@ -189,3 +189,6 @@ ALTER TABLE `tickets` ADD FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`)
 
 ALTER TABLE `users` ADD `report_to` INT NULL AFTER `is_active`;
 ALTER TABLE `users` ADD FOREIGN KEY (`report_to`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE RESTRICT;
+
+ALTER TABLE `tickets` ADD `department_id` INT NULL AFTER `project_id`;
+ALTER TABLE `tickets` ADD FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
