@@ -13,6 +13,7 @@ router = APIRouter(prefix="/tickets", tags=["Tickets"])
 # -----------------
 class TicketCreate(BaseModel):
     project_id: int
+    project_name: str
     department_id: int
     title: str = Field(..., min_length=1)
     description: Optional[str] = None
@@ -33,12 +34,19 @@ class TicketUpdate(BaseModel):
     status_id: Optional[int] = None
     assignees: List[int] = Field(..., min_length=1)
 
+class TicketStatusUpdate(BaseModel):
+    status_id: int
+
+class TicketTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1)
+
 class AssigneeResponse(BaseModel):
     id: int
     name: str
 
 class TicketResponse(BaseModel):
     id: int
+    ticket_no: Optional[str] = None
     project_id: int
     department_id: Optional[int] = None
     title: str
@@ -85,6 +93,16 @@ def get_ticket(ticket_id: int, db=Depends(get_db)):
 def update_ticket(ticket_id: int, ticket_update: TicketUpdate, db=Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
     result = TicketService.update_ticket(ticket_id, ticket_update, db, current_user_id)
     return success_response(result, "Ticket updated successfully")
+
+@router.patch("/{ticket_id}/status", response_model=APIResponse[TicketResponse])
+def update_ticket_status(ticket_id: int, status_update: TicketStatusUpdate, db=Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
+    result = TicketService.update_ticket_status(ticket_id, status_update, db, current_user_id)
+    return success_response(result, "Ticket status updated successfully")
+
+@router.patch("/{ticket_id}/title", response_model=APIResponse[TicketResponse])
+def update_ticket_title(ticket_id: int, title_update: TicketTitleUpdate, db=Depends(get_db), current_user_id: int = Depends(get_current_user_id)):
+    result = TicketService.update_ticket_title(ticket_id, title_update, db, current_user_id)
+    return success_response(result, "Ticket title updated successfully")
 
 @router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_ticket(ticket_id: int, db=Depends(get_db)):

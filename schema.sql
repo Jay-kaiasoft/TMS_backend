@@ -192,3 +192,5 @@ ALTER TABLE `users` ADD FOREIGN KEY (`report_to`) REFERENCES `users`(`id`) ON DE
 
 ALTER TABLE `tickets` ADD `department_id` INT NULL AFTER `project_id`;
 ALTER TABLE `tickets` ADD FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+
+ALTER TABLE `tickets` ADD `ticket_no` VARCHAR(50) NOT NULL AFTER `id`;

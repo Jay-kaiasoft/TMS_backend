@@ -106,12 +106,23 @@ class TicketService:
     @staticmethod
     def create_ticket(ticket, db, current_user_id):
         with db.cursor() as cursor:
+            # Generate ticket_no
+            words = ticket.project_name.split()
+            if len(words) > 1:
+                prefix = "".join([word[0] for word in words]).upper()
+            else:
+                prefix = ticket.project_name
+            
+            cursor.execute("SELECT COUNT(*) as count FROM tickets WHERE project_id = %s", (ticket.project_id,))
+            sn = (cursor.fetchone()['count'] or 0) + 1
+            ticket_no = f"{prefix}-{sn:02d}"
+
             sql = """
-                INSERT INTO tickets (project_id,department_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO tickets (ticket_no, project_id, department_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (
-                ticket.project_id, ticket.department_id, ticket.title, ticket.description, ticket.due_date, 
+                ticket_no, ticket.project_id, ticket.department_id, ticket.title, ticket.description, ticket.due_date, 
                 ticket.as_customer, ticket.for_customer, ticket.status_id, current_user_id
             ))
             db.commit()
@@ -274,6 +285,68 @@ class TicketService:
                     }
                     EmailService.send_email(u['email'], subject, "email_template.html", context)
 
+            return TicketService.get_ticket_internal(cursor, ticket_id)
+
+    @staticmethod
+    def update_ticket_status(ticket_id: int, status_update, db, current_user_id):
+        with db.cursor() as cursor:
+            # Check if ticket exists
+            cursor.execute("SELECT title, status_id FROM tickets WHERE id=%s", (ticket_id,))
+            ticket = cursor.fetchone()
+            if not ticket:
+                raise HTTPException(status_code=404, detail="Ticket not found")
+            
+            old_status_id = ticket['status_id']
+            new_status_id = status_update.status_id
+            
+            # Update status
+            cursor.execute("UPDATE tickets SET status_id=%s WHERE id=%s", (new_status_id, ticket_id))
+            db.commit()
+
+            # Handle notifications if status changed
+            if old_status_id != new_status_id:
+                # Get status names
+                cursor.execute("SELECT name FROM status WHERE id=%s", (old_status_id,))
+                old_status_res = cursor.fetchone()
+                old_status_name = old_status_res['name'] if old_status_res else "Unassigned"
+
+                cursor.execute("SELECT name FROM status WHERE id=%s", (new_status_id,))
+                new_status_res = cursor.fetchone()
+                new_status_name = new_status_res['name'] if new_status_res else "Unassigned"
+
+                # Get assignees to notify
+                cursor.execute("SELECT assign_to FROM assigned_tickets WHERE ticket_id=%s", (ticket_id,))
+                assignees = [r['assign_to'] for r in cursor.fetchall()]
+
+                if assignees:
+                    format_strings = ','.join(['%s'] * len(assignees))
+                    cursor.execute(f"SELECT email, first_name FROM users WHERE id IN ({format_strings})", tuple(assignees))
+                    users_to_email = cursor.fetchall()
+
+                    for u in users_to_email:
+                        subject = f"Ticket Status Updated: {ticket['title']}"
+                        context = {
+                            "subject": subject,
+                            "message": (
+                                f"Hello {u['first_name']},<br><br>"
+                                f"The status of ticket <b>{ticket['title']}</b> has been updated:<br><br>"
+                                f"<b>Status:</b> <span style='text-decoration: line-through; color: red;'>{old_status_name}</span> "
+                                f"<span style='color: green;'>{new_status_name}</span>"
+                            ),
+                        }
+                        EmailService.send_email(u['email'], subject, "email_template.html", context)
+
+            return TicketService.get_ticket_internal(cursor, ticket_id)
+
+    @staticmethod
+    def update_ticket_title(ticket_id: int, title_update, db, current_user_id):
+        with db.cursor() as cursor:
+            cursor.execute("SELECT id FROM tickets WHERE id=%s", (ticket_id,))
+            if not cursor.fetchone():
+                raise HTTPException(status_code=404, detail="Ticket not found")
+            
+            cursor.execute("UPDATE tickets SET title=%s WHERE id=%s", (title_update.title, ticket_id))
+            db.commit()
             return TicketService.get_ticket_internal(cursor, ticket_id)
 
     @staticmethod
