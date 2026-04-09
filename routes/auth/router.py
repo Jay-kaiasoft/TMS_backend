@@ -19,7 +19,6 @@ def set_password(req: SetPasswordReq, db=Depends(get_db)):
 @router.post("/login")
 def login(req: UserLogin, db=Depends(get_db)):
     result = AuthService.login(req, db)
-    print("result",result)
     return success_response(result["data"], result["message"])
 
 @router.post("/verify-otp")

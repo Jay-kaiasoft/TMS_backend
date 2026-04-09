@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS otps (
 INSERT IGNORE INTO roles (id, name) VALUES
 (1, 'Administrator'),
 (2, 'Developer'),
-(3, 'Customer');
+(3, 'Customer'),
+(4, 'Manager');
 
 -- Insert actions
 INSERT IGNORE INTO actions (id, name) VALUES
@@ -194,3 +195,48 @@ ALTER TABLE `tickets` ADD `department_id` INT NULL AFTER `project_id`;
 ALTER TABLE `tickets` ADD FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 ALTER TABLE `tickets` ADD `ticket_no` VARCHAR(50) NOT NULL AFTER `id`;
+
+-- Table: ticket_comments_type
+CREATE TABLE IF NOT EXISTS ticket_comments_type (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    created_by INT,
+    created_date_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Insert ticket_comments_type
+INSERT IGNORE INTO ticket_comments_type (id, name) VALUES
+(1, 'Open'),
+(2, 'Private for Developer'),
+(3, 'Private for Customer'),
+(4, 'Private for manager'),
+(5, 'Admin only');
+
+-- Table: ticket_comments
+CREATE TABLE IF NOT EXISTS ticket_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    comment LONGTEXT NOT NULL,
+    parent_comment_id INT,
+    comment_type_id INT,
+    created_by INT,
+    created_date_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_date_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_comment_id) REFERENCES ticket_comments(id) ON DELETE CASCADE,
+    FOREIGN KEY (comment_type_id) REFERENCES ticket_comments_type(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Table: ticket_comments_attachments
+CREATE TABLE IF NOT EXISTS ticket_comments_attachments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_comment_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_url VARCHAR(500) NOT NULL,
+    created_by INT,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ticket_comment_id) REFERENCES ticket_comments(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);

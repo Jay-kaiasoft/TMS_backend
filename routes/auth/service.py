@@ -99,6 +99,7 @@ class AuthService:
                 "permissions": {"functionalities": functionalities_data},
                 "firstName": user['first_name'],
                 "lastName": user['last_name'],
+                "id":user['id']
             }
 
             token = create_access_token({"sub": req.email, "role_id": user['role_id'], "user_id": user['id']})
