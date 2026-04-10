@@ -17,6 +17,7 @@ class TicketCreate(BaseModel):
     department_id: int
     title: str = Field(..., min_length=1)
     description: Optional[str] = None
+    working_hours: Optional[str]
     due_date: datetime
     as_customer: Optional[bool] = False
     for_customer: Optional[bool] = False
@@ -28,6 +29,7 @@ class TicketUpdate(BaseModel):
     department_id: int
     title: str = Field(..., min_length=1)
     description: Optional[str] = None
+    working_hours: Optional[str]
     due_date: datetime
     as_customer: Optional[bool] = False
     for_customer: Optional[bool] = False
@@ -52,6 +54,7 @@ class TicketResponse(BaseModel):
     title: str
     description: Optional[str]
     due_date: Optional[datetime]
+    working_hours: Optional[str]
     as_customer: bool
     for_customer: bool
     created_by: Optional[int]

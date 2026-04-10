@@ -118,11 +118,11 @@ class TicketService:
             ticket_no = f"{prefix}-{sn:02d}"
 
             sql = """
-                INSERT INTO tickets (ticket_no, project_id, department_id, title, description, due_date, as_customer, for_customer, status_id, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO tickets (ticket_no, project_id, department_id, title, description, due_date, working_hours, as_customer, for_customer, status_id, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (
-                ticket_no, ticket.project_id, ticket.department_id, ticket.title, ticket.description, ticket.due_date, 
+                ticket_no, ticket.project_id, ticket.department_id, ticket.title, ticket.description, ticket.due_date, ticket.working_hours, 
                 ticket.as_customer, ticket.for_customer, ticket.status_id, current_user_id
             ))
             db.commit()
@@ -200,11 +200,11 @@ class TicketService:
                 
             sql = """
                 UPDATE tickets
-                SET project_id=%s,department_id=%s, title=%s, description=%s, due_date=%s, as_customer=%s, for_customer=%s, status_id=%s
+                SET project_id=%s,department_id=%s, title=%s, description=%s, due_date=%s, working_hours=%s, as_customer=%s, for_customer=%s, status_id=%s
                 WHERE id=%s
             """
             cursor.execute(sql, (
-                ticket_update.project_id, ticket_update.department_id, ticket_update.title, ticket_update.description, ticket_update.due_date,
+                ticket_update.project_id, ticket_update.department_id, ticket_update.title, ticket_update.description, ticket_update.due_date, ticket_update.working_hours,
                 ticket_update.as_customer, ticket_update.for_customer, ticket_update.status_id, ticket_id
             ))
             

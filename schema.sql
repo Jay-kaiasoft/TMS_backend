@@ -239,4 +239,6 @@ CREATE TABLE IF NOT EXISTS ticket_comments_attachments (
     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ticket_comment_id) REFERENCES ticket_comments(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-);
+);
+
+ALTER TABLE `tickets` ADD `working_hours` VARCHAR(50) NULL AFTER `due_date`;
