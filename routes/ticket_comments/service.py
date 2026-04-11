@@ -192,7 +192,7 @@ class TicketCommentService:
         seen_emails = set()
         unique_recipients = []
         for r in recipients:
-            if r['email'] not in seen_emails and r['assign_to'] != comment['created_by']:
+            if r['email'] not in seen_emails:
                 seen_emails.add(r['email'])
                 unique_recipients.append(r)
         
