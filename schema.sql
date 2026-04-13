@@ -200,18 +200,17 @@ ALTER TABLE `tickets` ADD `ticket_no` VARCHAR(50) NOT NULL AFTER `id`;
 CREATE TABLE IF NOT EXISTS ticket_comments_type (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    created_by INT,
     created_date_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Insert ticket_comments_type
 INSERT IGNORE INTO ticket_comments_type (id, name) VALUES
 (1, 'Open'),
-(2, 'Private for Developer'),
-(3, 'Private for Customer'),
-(4, 'Private for manager'),
-(5, 'Admin only');
+(2, 'Private to Developer'),
+(3, 'Private to Customer'),
+(4, 'Private to manager'),
+(5, 'Private to Admin');
+(6, 'Private');
 
 -- Table: ticket_comments
 CREATE TABLE IF NOT EXISTS ticket_comments (
@@ -242,3 +241,7 @@ CREATE TABLE IF NOT EXISTS ticket_comments_attachments (
 );
 
 ALTER TABLE `tickets` ADD `working_hours` VARCHAR(50) NULL AFTER `due_date`;
+
+ALTER TABLE tms.ticket_comments_type DROP FOREIGN KEY ticket_comments_type_ibfk_1;
+
+ALTER TABLE `ticket_comments_type` DROP `created_by`;

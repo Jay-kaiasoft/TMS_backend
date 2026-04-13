@@ -176,7 +176,7 @@ class TicketCommentService:
             recipients.extend([u for u in assigned_users if u['role_id'] == 3])
         elif type_id == 4: # Private for manager
             # Users with 'Manager' role assigned to ticket
-            managers_by_role = [u for u in assigned_users if u['role_id'] == 4]
+            managers_by_role = [u for u in assigned_users if u['role_id'] == 5]
             recipients.extend(managers_by_role)
             # Assigned users who have subordinates
             for u in assigned_users:
