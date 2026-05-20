@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from services.email_service import EmailService
+from services.file_service import FileService
 import os
 import shutil
 
@@ -271,11 +272,10 @@ class TicketCommentService:
             for cid in all_ids:
                 cursor.execute("SELECT file_url FROM ticket_comments_attachments WHERE ticket_comment_id = %s", (cid,))
                 atts = cursor.fetchall()
-                base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public")
                 for att in atts:
                     if att['file_url']:
                         clean_url = att['file_url'].lstrip('/')
-                        file_path = os.path.join(base_dir, os.path.normpath(clean_url))
+                        file_path = FileService.get_upload_path(clean_url)
                         if os.path.exists(file_path):
                             try:
                                 os.remove(file_path)

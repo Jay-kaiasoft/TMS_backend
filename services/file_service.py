@@ -55,3 +55,34 @@ class FileService:
                 shutil.rmtree(base_cleanup_path)
         except Exception as e:
             print(f"Error cleaning empty directory {base_cleanup_path}: {e}")
+
+    @staticmethod
+    def get_upload_path(rel_path: str = None) -> str:
+        """
+        Resolves the physical directory path on disk where uploads are stored.
+        If rel_path is provided, it joins the rel_path to the base upload path,
+        avoiding duplication of 'usercontent'.
+        """
+        upload_base = os.getenv("FILE_UPLOAD_PATH")
+        if not upload_base:
+            # Fallback to default local path
+            # C:\Jay\TMS\backend\services\file_service.py -> Go up 3 levels to reach C:\Jay\TMS
+            tms_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            upload_base = os.path.join(tms_root, "frontend", "public")
+            
+        upload_base = os.path.normpath(upload_base)
+        
+        if not rel_path:
+            return upload_base
+            
+        clean_rel = rel_path.lstrip('/')
+        # Check if upload_base ends with 'usercontent' and clean_rel starts with 'usercontent'
+        base_norm = upload_base.replace('\\', '/').rstrip('/')
+        rel_norm = clean_rel.replace('\\', '/')
+        
+        if base_norm.endswith('/usercontent') and rel_norm.startswith('usercontent/'):
+            # Strip 'usercontent' from the start of the relative path
+            clean_rel = clean_rel[11:].lstrip('\\/')
+            
+        return os.path.join(upload_base, os.path.normpath(clean_rel))
+

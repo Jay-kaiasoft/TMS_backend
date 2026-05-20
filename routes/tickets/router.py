@@ -70,7 +70,8 @@ class TicketFilter(BaseModel):
     as_customer: Optional[bool] = None
     for_customer: Optional[bool] = None
     startDueDate: Optional[datetime] = None
-    endDueDate: Optional[datetime] = None
+    endDueDate: Optional[datetime] = None,
+    search: Optional[str] = None
 
 # Add this route after the existing ones
 @router.post("/filter", response_model=APIResponse[List[TicketResponse]])

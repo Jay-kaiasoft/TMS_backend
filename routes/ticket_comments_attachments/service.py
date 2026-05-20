@@ -42,8 +42,7 @@ class TicketCommentAttachmentsService:
             
             # Path: /frontend/public/usercontent/[user_id]/ticket/[ticket_id]/attachments/[attachment_id]/comments/[comment_id]/
             rel_path = f"usercontent/{u_id}/ticket/{ticket_id}/attachments/{attachment_id}/comments/{comment_id}"
-            base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public")
-            target_dir = os.path.join(base_dir, *rel_path.split('/'))
+            target_dir = FileService.get_upload_path(rel_path)
             
             os.makedirs(target_dir, exist_ok=True)
             file_path = os.path.join(target_dir, actual_file_name)
@@ -85,9 +84,8 @@ class TicketCommentAttachmentsService:
             db.commit()
             
             if file_url:
-                base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public")
                 clean_url = file_url.lstrip('/')
-                file_path = os.path.join(base_dir, os.path.normpath(clean_url))
+                file_path = FileService.get_upload_path(clean_url)
                 
                 if os.path.exists(file_path):
                     try:

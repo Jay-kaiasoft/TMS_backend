@@ -1,12 +1,13 @@
 import pymysql
 import pymysql.cursors
 from typing import Generator
+import os
 
 # Database configuration (should use env vars in production)
-DB_HOST = "localhost"
-DB_USER = "root"
-DB_PASSWORD = "" # Please change according to your local DB
-DB_NAME = "tms"
+DB_HOST = os.getenv("DB_HOST")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
 
 def get_db_connection():
     connection = pymysql.connect(

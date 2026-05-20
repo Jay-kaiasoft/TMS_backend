@@ -85,6 +85,11 @@ def get_customers(db=Depends(get_db)):
     result = UserService.get_customers(db)
     return success_response(result, "Customers fetched successfully")
 
+@router.get("/get/all/admins", response_model=APIResponse[List[UserResponse]])
+def get_admins(db=Depends(get_db)):
+    result = UserService.get_admins(db)
+    return success_response(result, "Admins fetched successfully")
+
 @router.get("/non-customers", response_model=APIResponse[List[UserResponse]])
 def get_non_customers(db=Depends(get_db)):
     result = UserService.get_non_customers(db)

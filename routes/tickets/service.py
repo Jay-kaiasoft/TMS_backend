@@ -1,6 +1,7 @@
 from fastapi import HTTPException, Header
 from core.security import SECRET_KEY, ALGORITHM
 from services.email_service import EmailService
+from services.file_service import FileService
 import jwt
 import os
 import shutil
@@ -66,9 +67,9 @@ class TicketService:
     @staticmethod
     def get_filtered_tickets(filter_obj, db, current_user_id):
         """
-        filter_obj: an object with optional attributes:
+        filter_obj: a dict or object with optional attributes:
             as_customer (bool), for_customer (bool),
-            startDueDate (datetime), endDueDate (datetime)
+            startDueDate (datetime/str), endDueDate (datetime/str), search (str)
         """
         with db.cursor() as cursor:
             # Base query: only tickets the user can see (creator or assignee)
@@ -76,38 +77,78 @@ class TicketService:
                 SELECT DISTINCT t.id
                 FROM tickets t
                 LEFT JOIN assigned_tickets at ON t.id = at.ticket_id
+                LEFT JOIN ticket_comments tc ON t.id = tc.ticket_id
                 WHERE (t.created_by = %s OR at.assign_to = %s)
             """
             params = [current_user_id, current_user_id]
 
-            # Apply optional filters
-            if filter_obj.as_customer is not None:
-                query += " AND t.as_customer = %s"
-                params.append(int(filter_obj.as_customer))  # convert bool to 0/1
+            if filter_obj:
+                # Helper to extract values seamlessly from a dict OR an object
+                def get_val(key):
+                    if isinstance(filter_obj, dict):
+                        return filter_obj.get(key)
+                    return getattr(filter_obj, key, None)
 
-            if filter_obj.for_customer is not None:
-                query += " AND t.for_customer = %s"
-                params.append(int(filter_obj.for_customer))
+                as_customer = get_val('as_customer')
+                for_customer = get_val('for_customer')
+                search = get_val('search')                                          
 
-            if filter_obj.startDueDate is not None and filter_obj.endDueDate is not None:
-                query += " AND t.due_date BETWEEN %s AND %s"
-                params.append(filter_obj.startDueDate)
-                params.append(filter_obj.endDueDate)
-            elif filter_obj.startDueDate is not None:
-                query += " AND t.due_date >= %s"
-                params.append(filter_obj.startDueDate)
-            elif filter_obj.endDueDate is not None:
-                query += " AND t.due_date <= %s"
-                params.append(filter_obj.endDueDate)
+                # Apply boolean filters
+                if as_customer not in (None, False):
+                    query += " AND t.as_customer = %s"
+                    params.append(int(as_customer)) 
+
+                if for_customer not in (None, False):
+                    query += " AND t.for_customer = %s"
+                    params.append(int(for_customer))
+
+                # 1. Extract values from the filter object
+                start_date = get_val('startDueDate')
+                end_date = get_val('endDueDate')
+
+                # 2. Extract the first element if they arrived wrapped in a tuple or list
+                if isinstance(start_date, (tuple, list)): 
+                    start_date = start_date[0] if start_date else None
+                if isinstance(end_date, (tuple, list)): 
+                    end_date = end_date[0] if end_date else None
+
+                # 3. Clean up strings and eliminate empty/falsy wrappers completely
+                if isinstance(start_date, str): start_date = start_date.strip()
+                if isinstance(end_date, str): end_date = end_date.strip()
+
+                # Force any remaining falsy values (like empty strings) to a hard None
+                start_date = start_date if start_date else None
+                end_date = end_date if end_date else None
+
+                # 4. Run the chained date range check
+                if start_date is not None and end_date is not None:
+                    query += " AND t.due_date BETWEEN %s AND %s"
+                    params.append(start_date)
+                    params.append(end_date)
+                elif start_date is not None:
+                    query += " AND t.due_date >= %s"
+                    params.append(start_date)
+                elif end_date is not None:
+                    query += " AND t.due_date <= %s"
+                    params.append(end_date)
+
+                if search:
+                    query += " AND (t.title LIKE %s OR t.description LIKE %s OR t.ticket_no LIKE %s OR tc.comment LIKE %s)"
+                    search_param = f"%{search}%"
+                    params.append(search_param)
+                    params.append(search_param)
+                    params.append(search_param)
+                    params.append(search_param)
 
             query += " ORDER BY t.id DESC"
-
             cursor.execute(query, params)
             ticket_records = cursor.fetchall()
 
             results = []
             for record in ticket_records:
-                results.append(TicketService.get_ticket_internal(cursor, record['id']))
+                # Safety check: handles both Dictionary cursors and standard Tuple cursors
+                ticket_id = record['id'] if isinstance(record, dict) else record[0]
+                results.append(TicketService.get_ticket_internal(cursor, ticket_id))
 
             return results
         
@@ -228,7 +269,7 @@ class TicketService:
     def update_ticket(ticket_id: int, ticket_update, db, current_user_id):
         with db.cursor() as cursor:
             cursor.execute("""
-                SELECT t.* 
+                SELECT t.*, s.name as status_name 
                 FROM tickets t
                 LEFT JOIN status s ON t.status_id = s.id
                 WHERE t.id=%s
@@ -403,14 +444,13 @@ class TicketService:
             attachments = cursor.fetchall()
             
             # Use base dir relative from where tickets_attachments used to be
-            base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "frontend", "public")
             ticket_dirs_to_remove = set()
             
             for att in attachments:
                 file_url = att['file_URL']
                 if file_url:
                     clean_url = file_url.lstrip('/')
-                    file_path = os.path.join(base_dir, os.path.normpath(clean_url))
+                    file_path = FileService.get_upload_path(clean_url)
                     
                     if os.path.exists(file_path):
                         try:

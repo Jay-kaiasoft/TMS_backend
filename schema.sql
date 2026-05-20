@@ -245,3 +245,5 @@ ALTER TABLE `tickets` ADD `working_hours` VARCHAR(50) NULL AFTER `due_date`;
 ALTER TABLE tms.ticket_comments_type DROP FOREIGN KEY ticket_comments_type_ibfk_1;
 
 ALTER TABLE `ticket_comments_type` DROP `created_by`;
+
+ALTER TABLE `projects` ADD `project_type` VARCHAR(100) NULL AFTER `client_id`;

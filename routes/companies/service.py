@@ -99,11 +99,7 @@ class CompanyService:
             return None
 
         rel_path = f"usercontent/{user_id}/company/{company_id}/logo"
-        base_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            "frontend", "public"
-        )
-        target_dir = os.path.join(base_dir, *rel_path.split('/'))
+        target_dir = FileService.get_upload_path(rel_path)
 
         # Clean existing logo directory
         if os.path.exists(target_dir):
@@ -139,12 +135,8 @@ class CompanyService:
                 return
 
             logo_url = company['logo']
-            base_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-                "frontend", "public"
-            )
             clean_url = logo_url.lstrip('/')
-            file_path = os.path.join(base_dir, os.path.normpath(clean_url))
+            file_path = FileService.get_upload_path(clean_url)
 
             if os.path.exists(file_path):
                 try:

@@ -1,17 +1,24 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables based on APP_ENV
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1. First, explicitly load the base .env file to pull in APP_ENV=local
+base_env_path = os.path.join(BASE_DIR, ".env")
+if os.path.exists(base_env_path):
+    # override=True ensures that if it's already set in the terminal, 
+    # the .env file can still set or update it if needed.
+    load_dotenv(dotenv_path=base_env_path, override=True)
+
+# 2. Now os.getenv will correctly read "local" from your .env file
 app_env = os.getenv("APP_ENV", "env")
 
-if app_env == "production":
-    if os.path.exists(os.path.join(BASE_DIR, ".env")):
-        load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"))
-elif app_env == "local":
-    load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env.local"))
+# 3. Load the specific overrides (override=True ensures these values overwrite the base ones)
+if app_env == "local":
+    load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env.local"), override=True)
 else:
-    load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env.dev"))
+    load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env.dev"), override=True)
+    
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse

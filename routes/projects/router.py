@@ -9,15 +9,18 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class ProjectCreate(BaseModel):
     name: str
     client_id: int
+    project_type: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     name: str
     client_id: int
+    project_type: Optional[str] = None
 
 class ProjectResponse(BaseModel):
     id: int
     name: str
     client_id: int
+    project_type: Optional[str] = None
     client_name: Optional[str] = None
     ticket_count: int
     ticket_titles: List[str]

@@ -77,6 +77,18 @@ class UserService:
             return users
 
     @staticmethod
+    def get_admins(db):
+        with db.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM users u
+                JOIN roles r ON u.role_id = r.id
+                WHERE (r.name = 'Admin' or r.name='Administrator') AND u.is_active = true
+                ORDER BY u.id DESC
+            """)
+            users = cursor.fetchall()
+            return users
+        
+    @staticmethod
     def get_user(user_id: int, db):
         with db.cursor() as cursor:
             cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))

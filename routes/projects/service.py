@@ -30,7 +30,7 @@ class ProjectService:
                 if cursor.fetchone():
                     raise HTTPException(status_code=400, detail="Project with this name already exists")
                 
-                cursor.execute("INSERT INTO projects (name, client_id) VALUES (%s, %s)", (project.name, project.client_id))
+                cursor.execute("INSERT INTO projects (name, client_id, project_type) VALUES (%s, %s, %s)", (project.name, project.client_id, project.project_type))
                 conn.commit()
                 new_id = cursor.lastrowid
                 
@@ -39,6 +39,7 @@ class ProjectService:
                     "id": new_id, 
                     "name": project.name, 
                     "client_id": project.client_id, 
+                    "project_type": project.project_type,
                     "client_name": client_name,
                     "ticket_count": 0,
                     "ticket_titles": []
@@ -60,6 +61,7 @@ class ProjectService:
                     SELECT
                         p.id,
                         p.name,
+                        p.project_type,
                         p.client_id,
                         u.first_name,
                         u.last_name,
@@ -88,6 +90,7 @@ class ProjectService:
                         "id": row['id'],
                         "name": row['name'],
                         "client_id": row['client_id'],
+                        "project_type": row['project_type'],
                         "client_name": client_name,
                         "ticket_count": row['ticket_count'],
                         "ticket_titles": ticket_titles   # always a list
@@ -108,7 +111,8 @@ class ProjectService:
                 cursor.execute("""
                     SELECT 
                         p.id, 
-                        p.name, 
+                        p.name,
+                        p.project_type,
                         p.client_id, 
                         u.first_name, 
                         u.last_name,
@@ -136,6 +140,7 @@ class ProjectService:
                     "id": row['id'],
                     "name": row['name'],
                     "client_id": row['client_id'],
+                    "project_type": row['project_type'],
                     "client_name": client_name,
                     "ticket_count": row['ticket_count'],
                     "ticket_titles": ticket_titles
@@ -165,7 +170,7 @@ class ProjectService:
                 if cursor.fetchone():
                     raise HTTPException(status_code=400, detail="Another project with this name already exists")
                 
-                cursor.execute("UPDATE projects SET name = %s, client_id = %s WHERE id = %s", (project.name, project.client_id, project_id))
+                cursor.execute("UPDATE projects SET name = %s, client_id = %s, project_type = %s WHERE id = %s", (project.name, project.client_id, project.project_type, project_id))
                 conn.commit()
                 
                 client_name = f"{client['first_name']} {client['last_name']}".strip()
@@ -181,6 +186,7 @@ class ProjectService:
                     "id": project_id, 
                     "name": project.name, 
                     "client_id": project.client_id, 
+                    "project_type": project.project_type,
                     "client_name": client_name,
                     "ticket_count": ticket_count,
                     "ticket_titles": ticket_titles
