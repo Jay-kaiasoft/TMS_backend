@@ -12,6 +12,7 @@ from .roles import router as roles
 from .companies import router as companies
 from .ticket_comments import router as ticket_comments
 from .ticket_comments_attachments import router as ticket_comments_attachments
+from .today_ticket_work import router as today_ticket_work
 
 router = APIRouter()
 
@@ -27,3 +28,5 @@ router.include_router(roles.router)
 router.include_router(companies.router)
 router.include_router(ticket_comments.router)
 router.include_router(ticket_comments_attachments.router)
+router.include_router(today_ticket_work.router)
+

@@ -1,5 +1,5 @@
 from fastapi import HTTPException, Header
-from core.security import SECRET_KEY, ALGORITHM
+from core.security import SECRET_KEY, ALGORITHM, get_current_user_id
 from services.email_service import EmailService
 from services.file_service import FileService
 import jwt
@@ -9,15 +9,6 @@ import shutil
 import logging
 logger = logging.getLogger(__name__)
 
-def get_current_user_id(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.split(" ")[1]
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("user_id")
-    except jwt.PyJWTError:
-        return None
 
 class TicketService:
 
@@ -556,5 +547,7 @@ class TicketService:
             for record in records:
                 ticket_details = TicketService.get_ticket_internal(cursor, record['id'])
                 if ticket_details:
+                    ticket_details['parent_ticket_no'] = None
+                    ticket_details['parent_ticket_title'] = None
                     results.append(ticket_details)
             return results

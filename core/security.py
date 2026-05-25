@@ -1,4 +1,5 @@
 from passlib.context import CryptContext
+from fastapi import Header
 import jwt
 
 SECRET_KEY = "super_secret_tms_jwt_key_secure_length_32_bytes"
@@ -98,3 +99,13 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+def get_current_user_id(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("user_id")
+    except jwt.PyJWTError:
+        return None

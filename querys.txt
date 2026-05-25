@@ -12,3 +12,21 @@ ALTER TABLE `tickets` ADD FOREIGN KEY (`parent_ticket_id`) REFERENCES `tickets`(
 ALTER TABLE `projects` ADD `company_id` INT NULL AFTER `client_id`;
 
 ALTER TABLE `projects` ADD FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+
+===================== 25-05-26 =============== also done in DB till 25-05-26
+
+CREATE TABLE `today_ticket_work` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `hours` VARCHAR(5) NULL,
+    `minutes` VARCHAR(5) NULL,
+    `date` DATE NOT NULL DEFAULT (CURRENT_DATE),
+    `note` LONGTEXT NULL,
+    `user_id` INT NOT NULL,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+ALTER TABLE `today_ticket_work` ADD FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+
+ALTER TABLE `today_ticket_work` ADD `ticket_id` INT NOT NULL AFTER `note`;
+
+ALTER TABLE `today_ticket_work` ADD FOREIGN KEY (`ticket_id`) REFERENCES `tickets`(`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
